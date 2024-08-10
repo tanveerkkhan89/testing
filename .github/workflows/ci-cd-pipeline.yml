@@ -51,7 +51,10 @@ jobs:
           version: '1.23.0'
 
       - name: Install AWS CLI
-        uses: aws-actions/aws-cli-action@v1
+        run: |
+          curl "https://d1uj6qtbmh3dt5.cloudfront.net/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          sudo ./aws/install
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -60,7 +63,22 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1 # Replace with your AWS region
 
-      - name: Deploy to EKS
+      - name: Set up EKS Cluster
         run: |
-          kubectl apply -f k8s/deployment.yaml || { echo 'Deployment failed'; exit 1; }
-          kubectl set image deployment/my-deployment my-container=${{ secrets.DOCKER_USERNAME }}/my-image:${{ github.sha }} || { echo 'Image update failed'; exit 1; }
+          aws eks update-kubeconfig --name example-eks-cluster
+          kubectl config use-context arn:aws:eks:us-east-1:123456789012:cluster/example-eks-cluster
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.4.0 # Replace with your Terraform version
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install my-release ./my-spring-app --set image.tag=${{ github.sha }} || { echo 'Helm deployment failed'; exit 1; }
