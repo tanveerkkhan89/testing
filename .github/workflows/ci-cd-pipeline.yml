@@ -1,6 +1,3 @@
-cluster naem : example-eks-cluster
-
-
 name: CI/CD Pipeline
 
 on:
