@@ -52,10 +52,12 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v1
-        with:
-          version: '1.23.0'
+      - name: Install kubectl
+        run: |
+          curl -LO "https://dl.k8s.io/release/v1.23.0/bin/linux/amd64/kubectl"
+          chmod +x ./kubectl
+          sudo mv ./kubectl /usr/local/bin/kubectl
+          kubectl version --client
 
       - name: Set up EKS Cluster
         run: |
