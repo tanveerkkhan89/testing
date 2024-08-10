@@ -52,11 +52,11 @@ jobs:
 
       - name: Terraform Init
         run: terraform init
-        working-directory: eks-tanveer-cluster
+        working-directory: eks-tanveer_cluster
 
       - name: Terraform Apply
         run: terraform apply -auto-approve
-        working-directory: eks-tanveer-cluster
+        working-directory: eks-tanveer_cluster
 
       - name: Terraform Output
         id: terraform-output
