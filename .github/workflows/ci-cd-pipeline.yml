@@ -45,10 +45,11 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v3
 
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v1
-        with:
-          version: '1.23.0'
+      - name: Install kubectl
+        run: |
+          curl -LO "https://dl.k8s.io/release/v1.23.0/bin/linux/amd64/kubectl"
+          chmod +x ./kubectl
+          sudo mv ./kubectl /usr/local/bin/kubectl
 
       - name: Install AWS CLI
         run: |
@@ -61,17 +62,17 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1 # Replace with your AWS region
+          aws-region: us-east-1
 
       - name: Set up EKS Cluster
         run: |
-          aws eks update-kubeconfig --name example-eks-cluster
-          kubectl config use-context arn:aws:eks:us-east-1:123456789012:cluster/example-eks-cluster
+          aws eks update-kubeconfig --name your-cluster-name
+          kubectl config use-context arn:aws:eks:us-east-1:123456789012:cluster/your-cluster-name
 
       - name: Install Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.4.0 # Replace with your Terraform version
+          terraform_version: 1.4.0
 
       - name: Terraform Init
         run: terraform init
