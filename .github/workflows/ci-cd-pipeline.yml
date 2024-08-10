@@ -1,4 +1,4 @@
-name: Deploy to EKS
+name: CI/CD Pipeline
 
 on:
   push:
@@ -9,50 +9,116 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Check out repository
         uses: actions/checkout@v3
 
-      - name: Set up JDK 17
+      - name: Set up Java JDK
         uses: actions/setup-java@v3
         with:
           java-version: '17'
+          distribution: 'adopt'
 
       - name: Build with Maven
         run: mvn clean package
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
       - name: Build Docker image
-        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/my-spring-app:latest .
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/my-image:${{ github.sha }} .
 
       - name: Log in to Docker Hub
-        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Push Docker image
-        run: docker push ${{ secrets.DOCKER_USERNAME }}/my-spring-app:latest
-
-      - name: Terraform Setup
-        working-directory: eks-tanveer_cluster
         run: |
-          terraform init \
-            -backend-config="bucket=${{ secrets.TF_BUCKET }}" \
-            -backend-config="key=${{ secrets.TF_KEY }}" \
-            -backend-config="region=${{ secrets.TF_REGION }}" \
-            -backend-config="dynamodb_table=${{ secrets.TF_DYNAMODB_TABLE }}"
+          docker push ${{ secrets.DOCKER_USERNAME }}/my-image:${{ github.sha }}
 
-      - name: Terraform Plan
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.9.4
+
+      - name: Terraform Init
+        run: terraform init
         working-directory: eks-tanveer_cluster
-        run: terraform plan -out=tfplan
 
       - name: Terraform Apply
+        run: terraform apply -auto-approve
         working-directory: eks-tanveer_cluster
-        run: terraform apply -auto-approve tfplan
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
 
-      - name: Helm Setup and Deploy
+      - name: Terraform Output
+        id: terraform-output
         run: |
-          helm repo add stable https://charts.helm.sh/stable
-          helm repo update
-          helm upgrade --install my-spring-app ./my-spring-app --namespace default --create-namespace
-
-      - name: Clean up Infrastructure (if needed)
-        if: failure()
+          echo "Cluster Name Output:"
+          terraform output -raw eks_cluster_name
+          echo "EKS_CLUSTER_NAME=$(terraform output -raw eks_cluster_name)" >> $GITHUB_ENV
         working-directory: eks-tanveer_cluster
-        run: terraform destroy -auto-approve
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+
+      - name: Install kubectl
+        run: |
+          curl -LO "https://dl.k8s.io/release/v1.23.0/bin/linux/amd64/kubectl"
+          chmod +x ./kubectl
+          sudo mv ./kubectl /usr/local/bin/kubectl
+          kubectl version --client
+
+      - name: Install Helm
+        run: |
+          curl -fsSL -o helm.tar.gz https://get.helm.sh/helm-v3.11.0-linux-amd64.tar.gz
+          tar -zxvf helm.tar.gz
+          sudo mv linux-amd64/helm /usr/local/bin/helm
+          helm version --client
+
+      - name: Configure kubectl to use EKS
+        run: |
+          aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region us-east-1
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install my-release ./my-spring-app --set image.tag=${{ github.sha }}
+        working-directory: eks-tanveer_cluster
+
+  cleanup:
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: failure()
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.9.4
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: eks-tanveer_cluster
+
+      - name: Terraform Destroy
+        run: |
+          terraform destroy -auto-approve
+        working-directory: eks-tanveer_cluster
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
