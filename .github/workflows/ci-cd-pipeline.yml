@@ -52,15 +52,18 @@ jobs:
 
       - name: Terraform Init
         run: terraform init
+        working-directory: eks-tanveer-cluster
 
       - name: Terraform Apply
         run: terraform apply -auto-approve
+        working-directory: eks-tanveer-cluster
 
       - name: Terraform Output
         id: terraform-output
         run: |
-          CLUSTER_NAME=$(terraform output -raw eks_cluster_name)
-          echo "EKS_CLUSTER_NAME=$CLUSTER_NAME" >> $GITHUB_ENV
+          terraform output -json > terraform_output.json
+          echo "EKS_CLUSTER_NAME=$(jq -r .eks_cluster_name.value terraform_output.json)" >> $GITHUB_ENV
+        working-directory: eks-tanveer-cluster
 
       - name: Install kubectl
         run: |
