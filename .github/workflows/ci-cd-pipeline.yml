@@ -51,25 +51,18 @@ jobs:
           terraform_version: 1.9.4
 
       - name: Terraform Init
-        working-directory: ./eks-tanveer_cluster
         run: terraform init
+        working-directory: eks-tanveer_cluster
 
       - name: Terraform Apply
-        id: terraform
-        working-directory: ./eks-tanveer_cluster
-        run: |
-          terraform apply -auto-approve
-          terraform output -json > terraform_output.json
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: us-east-1
+        run: terraform apply -auto-approve
+        working-directory: eks-tanveer_cluster
 
-      - name: Extract EKS Cluster Name
-        id: extract-eks-name
+      - name: Terraform Output
+        id: terraform-output
         run: |
-          export EKS_CLUSTER_NAME=$(jq -r .eks_cluster_name.value terraform_output.json)
-          echo "EKS_CLUSTER_NAME=$EKS_CLUSTER_NAME" >> $GITHUB_ENV
+          echo "EKS_CLUSTER_NAME=$(terraform output -raw eks_cluster_name)" >> $GITHUB_ENV
+        working-directory: eks-tanveer_cluster
 
       - name: Install kubectl
         run: |
@@ -87,18 +80,8 @@ jobs:
 
       - name: Configure kubectl to use EKS
         run: |
-          aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region us-east-1
+          aws eks update-kubeconfig --name $(terraform output -raw eks_cluster_name) --region us-east-1
 
       - name: Deploy with Helm
         run: |
           helm upgrade --install my-release ./my-spring-app --set image.tag=${{ github.sha }}
-
-      - name: Terraform Destroy
-        if: failure() # This step will only run if the previous steps fail
-        working-directory: ./eks-tanveer_cluster
-        run: |
-          terraform destroy -auto-approve
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: us-east-1
