@@ -4,35 +4,13 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  setup:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up Java JDK
-        uses: actions/setup-java@v3
-        with:
-          java-version: '17'
-          distribution: 'adopt'
-
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: 1.9.4
-
-      - name: Configure AWS CLI
-        run: |
-          aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws configure set region us-east-1
-
   build:
     runs-on: ubuntu-latest
-    needs: setup
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -65,12 +43,15 @@ jobs:
           aws configure set region us-east-1
 
       - name: Terraform Init
+        working-directory: eks-tanveer_cluster
         run: terraform init -backend-config="bucket=${{ secrets.TF_BACKEND_BUCKET }}" -backend-config="key=terraform/state" -backend-config="region=us-east-1" -backend-config="dynamodb_table=${{ secrets.TF_BACKEND_TABLE }}"
 
       - name: Terraform Plan
+        working-directory: eks-tanveer_cluster
         run: terraform plan -out=tfplan
 
       - name: Terraform Apply
+        working-directory: eks-tanveer_cluster
         run: terraform apply -auto-approve tfplan
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -78,6 +59,7 @@ jobs:
           AWS_DEFAULT_REGION: us-east-1
 
       - name: Fetch Terraform outputs
+        working-directory: eks-tanveer_cluster
         run: |
           echo "Fetching Terraform outputs..."
           terraform output eks_cluster_name > output.txt
@@ -95,11 +77,37 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up Helm
-        uses: azure/setup-helm@v1
+      - name: Set up Kubernetes CLI
+        uses: azure/setup-kubectl@v1
+        with:
+          version: 'latest'
 
-      - name: Deploy with Helm
-        run: helm upgrade --install my-spring-app ./my-spring-app --namespace default --create-namespace
+      - name: Configure kubectl
+        run: |
+          aws eks --region us-east-1 update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+
+      - name: Deploy Application with Helm
+        run: |
+          helm upgrade --install my-spring-app ./helm-chart --namespace default --create-namespace
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+
+      - name: Test Application
+        run: |
+          APP_URL="http://my-app.example.com" # Replace with the actual URL of your deployed application
+          RESPONSE=$(curl --write-out "%{http_code}" --silent --output /dev/null "$APP_URL")
+          if [ "$RESPONSE" -ne 200 ]; then
+            echo "Application is not reachable. HTTP response code: $RESPONSE"
+            exit 1
+          else
+            echo "Application is reachable. HTTP response code: $RESPONSE"
+          fi
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -107,18 +115,26 @@ jobs:
 
   cleanup:
     runs-on: ubuntu-latest
-    needs: [deploy]
+    needs: deploy
     if: failure() || success()
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.9.4
+
       - name: Configure AWS CLI
         run: |
           aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws configure set region us-east-1
 
-      - name: Cleanup Terraform
-        run: |
-          terraform destroy -auto-approve
+      - name: Terraform Destroy
+        working-directory: eks-tanveer_cluster
+        run: terraform destroy -auto-approve
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
