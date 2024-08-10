@@ -67,9 +67,11 @@ jobs:
 
       - name: Terraform Output
         id: terraform-output
-        run: |
-          terraform output -json > terraform_output.json
-          echo "EKS_CLUSTER_NAME=$(jq -r .eks_cluster_name.value terraform_output.json)" >> $GITHUB_ENV
+        run: terraform output -json > terraform_output.json
+        working-directory: eks-tanveer_cluster
+
+      - name: Debug Terraform Output
+        run: cat terraform_output.json
         working-directory: eks-tanveer_cluster
 
       - name: Install kubectl
@@ -81,7 +83,8 @@ jobs:
 
       - name: Configure kubectl to use EKS
         run: |
-          aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region us-east-1
+          EKS_CLUSTER_NAME=$(jq -r .eks_cluster_name.value terraform_output.json)
+          aws eks update-kubeconfig --name $EKS_CLUSTER_NAME --region us-east-1
 
       - name: Deploy with Helm
         run: |
