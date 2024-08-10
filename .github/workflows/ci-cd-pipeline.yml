@@ -70,7 +70,7 @@ jobs:
         run: |
           terraform output -json > terraform_output.json
           echo "EKS_CLUSTER_NAME=$(jq -r .eks_cluster_name.value terraform_output.json)" >> $GITHUB_ENV
-        working-directory: eks-tanveer-cluster
+        working-directory: eks-tanveer_cluster
 
       - name: Install kubectl
         run: |
