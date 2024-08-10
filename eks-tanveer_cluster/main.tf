@@ -151,3 +151,8 @@ resource "aws_eks_node_group" "eks_nodes" {
     Name = "eks-node-group"
   }
 }
+
+# Output the EKS Cluster Name
+output "eks_cluster_name" {
+  value = aws_eks_cluster.eks_cluster.name
+}
