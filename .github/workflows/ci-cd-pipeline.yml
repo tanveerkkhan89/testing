@@ -46,12 +46,11 @@ jobs:
         working-directory: eks-tanveer_cluster
         run: terraform apply -auto-approve tfplan
 
-      - name: Helm Setup
-        run: helm repo add stable https://charts.helm.sh/stable
-        run: helm repo update
-
-      - name: Deploy with Helm
-        run: helm upgrade --install my-spring-app ./my-spring-app --namespace default --create-namespace
+      - name: Helm Setup and Deploy
+        run: |
+          helm repo add stable https://charts.helm.sh/stable
+          helm repo update
+          helm upgrade --install my-spring-app ./my-spring-app --namespace default --create-namespace
 
       - name: Clean up Infrastructure (if needed)
         if: failure()
