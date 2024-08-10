@@ -54,21 +54,13 @@ jobs:
         run: terraform init
         working-directory: eks-tanveer_cluster
 
-      - name: Terraform Apply
-        run: terraform apply -auto-approve
-        working-directory: eks-tanveer_cluster
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
-      - name: Get EKS Cluster Name
-        id: get-eks-cluster-name
+      - name: Terraform Output
+        id: terraform-output
         run: |
+          echo "Cluster Name Output:"
+          terraform output -raw eks_cluster_name
           echo "EKS_CLUSTER_NAME=$(terraform output -raw eks_cluster_name)" >> $GITHUB_ENV
         working-directory: eks-tanveer_cluster
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
       - name: Install kubectl
         run: |
@@ -76,6 +68,13 @@ jobs:
           chmod +x ./kubectl
           sudo mv ./kubectl /usr/local/bin/kubectl
           kubectl version --client
+
+      - name: Install Helm
+        run: |
+          curl -fsSL -o helm.tar.gz https://get.helm.sh/helm-v3.11.0-linux-amd64.tar.gz
+          tar -zxvf helm.tar.gz
+          sudo mv linux-amd64/helm /usr/local/bin/helm
+          helm version --client
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -91,6 +90,7 @@ jobs:
       - name: Deploy with Helm
         run: |
           helm upgrade --install my-release ./my-spring-app --set image.tag=${{ github.sha }}
+        working-directory: eks-tanveer_cluster
 
   cleanup:
     runs-on: ubuntu-latest
@@ -105,8 +105,13 @@ jobs:
         with:
           terraform_version: 1.9.4
 
+      - name: Terraform Init
+        run: terraform init
+        working-directory: eks-tanveer_cluster
+
       - name: Terraform Destroy
-        run: terraform destroy -auto-approve
+        run: |
+          terraform destroy -auto-approve
         working-directory: eks-tanveer_cluster
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
