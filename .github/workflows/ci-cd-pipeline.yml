@@ -53,6 +53,10 @@ jobs:
       - name: Terraform Init
         run: terraform init
         working-directory: eks-tanveer_cluster
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
 
       - name: Terraform Apply
         run: terraform apply -auto-approve
@@ -65,20 +69,9 @@ jobs:
       - name: Terraform Output
         id: terraform-output
         run: |
-          # Capture the output from Terraform and handle errors
-          CLUSTER_NAME=$(terraform output -raw eks_cluster_name || echo "Error fetching cluster name")
-          
-          # Echo the output for visibility in the log
-          echo "Cluster Name Output: ${CLUSTER_NAME}"
-          
-          # Check if the output is an error message
-          if [[ "${CLUSTER_NAME}" == "Error fetching cluster name" ]]; then
-            echo "Error: Unable to fetch the cluster name from Terraform output."
-            exit 1
-          fi
-          
-          # Set the output to GitHub Actions environment variable
-          echo "EKS_CLUSTER_NAME=${CLUSTER_NAME}" >> $GITHUB_ENV
+          echo "Cluster Name Output:"
+          terraform output -raw eks_cluster_name
+          echo "EKS_CLUSTER_NAME=$(terraform output -raw eks_cluster_name)" >> $GITHUB_ENV
         working-directory: eks-tanveer_cluster
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -110,8 +103,8 @@ jobs:
 
   cleanup:
     runs-on: ubuntu-latest
-    needs: deploy
-    if: failure() || success()
+    needs: [build, deploy]
+    if: failure()
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
@@ -124,6 +117,10 @@ jobs:
       - name: Terraform Init
         run: terraform init
         working-directory: eks-tanveer_cluster
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
 
       - name: Terraform Destroy
         run: |
