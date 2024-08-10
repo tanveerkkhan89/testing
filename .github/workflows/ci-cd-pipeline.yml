@@ -4,10 +4,35 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Java JDK
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'adopt'
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.9.4
+
+      - name: Configure AWS CLI
+        run: |
+          aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws configure set region us-east-1
+
   build:
     runs-on: ubuntu-latest
+    needs: setup
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -20,9 +45,8 @@ jobs:
 
       - name: Build with Maven
         run: mvn clean package
-        working-directory: your-java-project-directory
 
-  deploy:
+  terraform:
     runs-on: ubuntu-latest
     needs: build
     steps:
@@ -32,35 +56,50 @@ jobs:
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.4.0
+          terraform_version: 1.9.4
+
+      - name: Configure AWS CLI
+        run: |
+          aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws configure set region us-east-1
 
       - name: Terraform Init
-        run: terraform init
-        working-directory: eks-tanveer_cluster
+        run: terraform init -backend-config="bucket=${{ secrets.TF_BACKEND_BUCKET }}" -backend-config="key=terraform/state" -backend-config="region=us-east-1" -backend-config="dynamodb_table=${{ secrets.TF_BACKEND_TABLE }}"
 
       - name: Terraform Plan
         run: terraform plan -out=tfplan
-        working-directory: eks-tanveer_cluster
 
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan
-        working-directory: eks-tanveer_cluster
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: us-east-1
 
-      - name: Test Application
+      - name: Fetch Terraform outputs
         run: |
-          # Replace the following URL with the actual URL of your application
-          APP_URL="http://my-app.example.com" # Example URL
-          RESPONSE=$(curl --write-out "%{http_code}" --silent --output /dev/null "$APP_URL")
-          if [ "$RESPONSE" -ne 200 ]; then
-            echo "Application is not reachable. HTTP response code: $RESPONSE"
-            exit 1
-          else
-            echo "Application is reachable. HTTP response code: $RESPONSE"
-          fi
+          echo "Fetching Terraform outputs..."
+          terraform output eks_cluster_name > output.txt
+          cat output.txt
+          echo "EKS_CLUSTER_NAME=$(cat output.txt)" >> $GITHUB_ENV
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: terraform
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v1
+
+      - name: Deploy with Helm
+        run: helm upgrade --install my-spring-app ./my-spring-app --namespace default --create-namespace
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -68,20 +107,18 @@ jobs:
 
   cleanup:
     runs-on: ubuntu-latest
-    needs: deploy
-    if: failure()  # Run this job only if the deploy job fails
+    needs: [deploy]
+    if: failure() || success()
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Configure AWS CLI
+        run: |
+          aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws configure set region us-east-1
 
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: 1.4.0
-
-      - name: Terraform Destroy
-        run: terraform destroy -auto-approve
-        working-directory: eks-tanveer_cluster
+      - name: Cleanup Terraform
+        run: |
+          terraform destroy -auto-approve
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
