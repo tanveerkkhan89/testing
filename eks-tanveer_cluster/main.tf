@@ -45,12 +45,22 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v3
 
-      - name: Install AWS CLI v2
+      - name: Install kubectl
+        run: |
+          curl -LO "https://dl.k8s.io/release/v1.23.0/bin/linux/amd64/kubectl"
+          chmod +x ./kubectl
+          sudo mv ./kubectl /usr/local/bin/kubectl
+
+      - name: Install AWS CLI
         run: |
           curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-          unzip awscliv2.zip
-          sudo ./aws/install
-          aws --version
+          if [ -f awscliv2.zip ]; then
+            unzip awscliv2.zip
+            sudo ./aws/install
+          else
+            echo "AWS CLI ZIP file not found or download failed."
+            exit 1
+          fi
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -59,16 +69,22 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Set up kubectl
-        uses: kubernetes-sigs/setup-kubectl@v2
-        with:
-          version: '1.23.0'
-
       - name: Set up EKS Cluster
         run: |
           aws eks update-kubeconfig --name example-eks-cluster
           kubectl config use-context arn:aws:eks:us-east-1:123456789012:cluster/example-eks-cluster
 
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.4.0
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+
       - name: Deploy with Helm
         run: |
-          helm upgrade --install my-release ./my-spring-app --set image.tag=${{ github.sha }}
+          helm upgrade --install my-release ./my-spring-app --set image.tag=${{ github.sha }} || { echo 'Helm deployment failed'; exit 1; }
