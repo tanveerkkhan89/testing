@@ -46,12 +46,12 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Set up kubectl
-        uses: kubernetes-sigs/setup-kubectl@v2
+        uses: azure/setup-kubectl@v1
         with:
           version: '1.23.0'
 
       - name: Install AWS CLI
-        uses: aws-actions/setup-aws-cli@v2
+        uses: aws-actions/aws-cli-action@v1
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
