@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build:
@@ -12,31 +15,13 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v3
 
-      - name: Set up Java JDK
+      - name: Set up Java
         uses: actions/setup-java@v3
         with:
           java-version: '17'
-          distribution: 'adopt'
 
       - name: Build with Maven
-        run: mvn clean package
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Build Docker image
-        run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/my-image:${{ github.sha }} .
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Push Docker image
-        run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/my-image:${{ github.sha }}
+        run: mvn clean install
 
   deploy:
     runs-on: ubuntu-latest
@@ -66,13 +51,13 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: us-east-1
 
-      - name: Terraform Output
+      - name: Fetch Terraform Output
         id: terraform-output
         run: |
           echo "Fetching Terraform outputs..."
-          terraform output eks_cluster_name > output.txt
-          cat output.txt
-          echo "EKS_CLUSTER_NAME=$(cat output.txt)" >> $GITHUB_ENV
+          CLUSTER_NAME=$(terraform output -raw eks_cluster_name)
+          echo "Cluster Name: $CLUSTER_NAME"
+          echo "EKS_CLUSTER_NAME=$CLUSTER_NAME" >> $GITHUB_ENV
         working-directory: eks-tanveer_cluster
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
