@@ -66,17 +66,28 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: us-east-1
 
+      - name: Debug Terraform Output
+        run: |
+          echo "Raw Cluster Name Output:"
+          terraform output -raw eks_cluster_name
+        working-directory: eks-tanveer_cluster
+
       - name: Terraform Output
         id: terraform-output
         run: |
           echo "Cluster Name Output:"
-          CLUSTER_NAME=$(terraform output -raw eks_cluster_name)
+          CLUSTER_NAME=$(terraform output -raw eks_cluster_name | tr -d '\r' | tr -d '\n')
           echo "EKS_CLUSTER_NAME=$CLUSTER_NAME" >> $GITHUB_ENV
         working-directory: eks-tanveer_cluster
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: us-east-1
+
+      - name: Verify EKS_CLUSTER_NAME
+        run: echo "EKS_CLUSTER_NAME=$EKS_CLUSTER_NAME"
+        env:
+          EKS_CLUSTER_NAME: ${{ env.EKS_CLUSTER_NAME }}
 
       - name: Install kubectl
         run: |
@@ -99,7 +110,7 @@ jobs:
       - name: Deploy with Helm
         run: |
           helm upgrade --install my-release ./my-spring-app --set image.tag=${{ github.sha }}
-        working-directory: eks-tanveer_cluster
+        working-directory: my-spring-app
 
   cleanup:
     runs-on: ubuntu-latest
