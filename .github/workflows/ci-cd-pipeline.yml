@@ -126,7 +126,6 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: us-east-1
 
-
       - name: Deploy with Helm
         run: |
           helm upgrade --install my-release ./my-spring-app --set image.tag=${{ github.sha }}
@@ -135,7 +134,6 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: us-east-1
-
 
   cleanup:
     runs-on: ubuntu-latest
