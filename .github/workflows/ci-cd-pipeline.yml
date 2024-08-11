@@ -70,8 +70,8 @@ jobs:
         id: terraform-output
         run: |
           echo "Cluster Name Output:"
-          terraform output -raw eks_cluster_name
-          echo "EKS_CLUSTER_NAME=$(terraform output -raw eks_cluster_name)" >> $GITHUB_ENV
+          CLUSTER_NAME=$(terraform output -raw eks_cluster_name)
+          echo "EKS_CLUSTER_NAME=$CLUSTER_NAME" >> $GITHUB_ENV
         working-directory: eks-tanveer_cluster
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
