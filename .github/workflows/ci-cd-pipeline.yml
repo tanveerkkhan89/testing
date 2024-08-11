@@ -129,7 +129,7 @@ jobs:
       - name: Deploy with Helm
         run: |
           helm upgrade --install my-release ./my-spring-app --set image.tag=${{ github.sha }}
-        working-directory: my-spring-app
+        working-directory: ./my-spring-app
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
