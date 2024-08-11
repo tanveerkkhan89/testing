@@ -72,6 +72,13 @@ jobs:
     outputs:
       cluster_name: ${{ steps.terraform-output.outputs.cluster_name }}
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: List directory contents
+        run: |
+          ls -alh
+
       - name: Terraform Output
         id: terraform-output
         run: |
