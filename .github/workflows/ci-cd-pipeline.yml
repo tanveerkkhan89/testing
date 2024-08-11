@@ -113,14 +113,20 @@ jobs:
           sudo mv linux-amd64/helm /usr/local/bin/helm
           helm version --client
 
+      - name: Debug CLUSTER_NAME
+        run: echo "CLUSTER_NAME=${{ env.CLUSTER_NAME }}"
+
       - name: Configure kubectl to use EKS
         run: |
           aws eks update-kubeconfig --name $CLUSTER_NAME --region us-east-1
+        env:
+          CLUSTER_NAME: ${{ needs.extract.outputs.cluster_name }}
 
       - name: Deploy with Helm
         run: |
           helm upgrade --install my-release ./my-spring-app --set image.tag=${{ github.sha }}
         working-directory: my-spring-app
+
 
   cleanup:
     runs-on: ubuntu-latest
@@ -144,7 +150,8 @@ jobs:
           AWS_DEFAULT_REGION: us-east-1
 
       - name: Terraform Destroy
-        run: terraform destroy -auto-approve
+        run: |
+          terraform destroy -auto-approve
         working-directory: eks-tanveer_cluster
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
