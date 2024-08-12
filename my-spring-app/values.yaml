@@ -40,8 +40,9 @@ securityContext: {}
   # runAsUser: 1000
 
 service:
-  type: NodePort
-  port: 8080
+  type: LoadBalancer
+  port: 80
+  targetPort: 3000
   nodePort: 30000  # Or any valid port within the NodePort range
 
 
