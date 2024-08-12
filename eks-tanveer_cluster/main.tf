@@ -161,6 +161,28 @@ resource "aws_eks_node_group" "eks_nodes" {
   }
 }
 
+# LoadBalancer Service
+resource "kubernetes_service" "my_app_lb" {
+  metadata {
+    name      = "my-app-loadbalancer"
+    namespace = "default"
+  }
+
+  spec {
+    type = "LoadBalancer"
+
+    selector = {
+      app = "my-spring-app"
+    }
+
+    port {
+      port        = 80        # The port exposed by the LoadBalancer
+      target_port = 3000      # The port your application is listening on inside the container
+      node_port   = 30000     # The NodePort that routes traffic to targetPort
+    }
+  }
+}
+
 # Output the EKS Cluster Name
 output "eks_cluster_name" {
   value = aws_eks_cluster.eks_cluster.name
