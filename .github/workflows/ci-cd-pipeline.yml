@@ -59,7 +59,7 @@ jobs:
           AWS_DEFAULT_REGION: us-east-1
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve
+        run: terraform apply -lock=false -auto-approve
         working-directory: eks-tanveer_cluster
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
