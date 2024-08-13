@@ -1,28 +1,14 @@
 terraform {
   backend "s3" {
-    bucket         = "rakbankdemo"
+    bucket         = "rakbankdemo1"
     key            = "terraform/state.tfstate"
     region         = "us-east-1"
-    dynamodb_table = "terraform-lock-table"
+    dynamodb_table = "terraform-lock-table1"
   }
 }
 
 provider "aws" {
   region = "us-east-1"
-}
-
-provider "kubernetes" {
-  host                   = "https://${aws_eks_cluster.eks_cluster.endpoint}"
-  token                  = data.aws_eks_cluster_auth.cluster.token
-  cluster_ca_certificate = base64decode(data.aws_eks_cluster.eks_cluster.certificate_authority[0].data)
-}
-
-data "aws_eks_cluster" "eks_cluster" {
-  name = aws_eks_cluster.eks_cluster.name
-}
-
-data "aws_eks_cluster_auth" "cluster" {
-  name = aws_eks_cluster.eks_cluster.name
 }
 
 # VPC
@@ -172,27 +158,6 @@ resource "aws_eks_node_group" "eks_nodes" {
 
   tags = {
     Name = "eks-node-group"
-  }
-}
-
-# LoadBalancer Service
-resource "kubernetes_service" "my_app_lb" {
-  metadata {
-    name      = "my-app-loadbalancer"
-    namespace = "default"
-  }
-
-  spec {
-    type = "LoadBalancer"
-
-    selector = {
-      app = "my-spring-app"
-    }
-
-    port {
-      port        = 80        # The port exposed by the LoadBalancer
-      target_port = 3000      # The port your application is listening on inside the container
-    }
   }
 }
 
