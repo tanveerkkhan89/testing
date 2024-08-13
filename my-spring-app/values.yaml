@@ -77,7 +77,7 @@ resources: {}
 livenessProbe:
   httpGet:
     path: /health
-    port: 3000
+    port: 80
   initialDelaySeconds: 60
   timeoutSeconds: 10
   periodSeconds: 15
@@ -86,7 +86,7 @@ livenessProbe:
 readinessProbe:
   httpGet:
     path: /ready
-    port: 3000
+    port: 80
   initialDelaySeconds: 60
   timeoutSeconds: 10
   periodSeconds: 15
